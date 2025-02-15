@@ -4,6 +4,7 @@ import Search from "./components/search.jsx";
 import { updateSearchCount} from "./appwrite.js";
 import HashLoader from "react-spinners/HashLoader";
 import MovieCard from "./components/MovieCard.jsx";
+import {useDebounce} from "react-use";
 
 
 const API_BASE_URL = "https://api.themoviedb.org/3";
@@ -19,18 +20,25 @@ const API_OPTIONS = {
 }
 
 const App = () => {
-
     const [searchTerm, setSearchTerm] = useState("");
     const [errorMessage, setErrorMessage] = useState("");
     const [movieList, setMovieList] = useState([]);
     const [isMovieLoading, setIsMovieLoading] = useState(false); // show loader to user
+    const [trendingMovies, setTrendingMovies] = useState([]);
 
-    const fetchMovies = async () => {
+    const [ deBouncedSearchTerm, setDeBouncedSearchTerm ] = useState("");
+
+    useDebounce(() => setDeBouncedSearchTerm(searchTerm), 500, [searchTerm]);
+
+    const fetchMovies = async (query = '') => {
         setIsMovieLoading(true);
         setErrorMessage("");
 
         try {
-            const endpoint = `${API_BASE_URL}/discover/movie?sort_by=popularity.desc`;
+            const endpoint = query
+                ? `${API_BASE_URL}/search/movie?query=${encodeURIComponent(query)}`
+                :`${API_BASE_URL}/discover/movie?sort_by=popularity.desc`;
+
             const response = await fetch(endpoint, API_OPTIONS);
 
             if (!response.ok) {
@@ -39,10 +47,12 @@ const App = () => {
 
             const data = await response.json();
 
+            await new Promise(resolve => setTimeout(resolve, 1000));
+
             console.log(data);
 
             if (data.results === 'False') {
-                setMovieList(data.Error || "Failed to fetch movies");
+                setErrorMessage(data.Error || "Failed to fetch movies");
                 setMovieList([]);
                 return;
             }
@@ -57,8 +67,8 @@ const App = () => {
     }
 
     useEffect(() => {
-        fetchMovies()
-    }, [])
+        fetchMovies(deBouncedSearchTerm);
+    }, [deBouncedSearchTerm])
 
     return (
         <main>
@@ -75,9 +85,10 @@ const App = () => {
 
                 <section className="all-movies">
                     <h2 className={'pt-10'}>All Movies</h2>
-
                     {isMovieLoading ? (
-                        <HashLoader />
+                        <div className="flex justify-center items-center h-64">
+                            <HashLoader color="#ad6fe8" size={50} />
+                        </div>
                     ) : errorMessage ? (
                         <p className="text-red-500">{errorMessage}</p>
                     ) : (
