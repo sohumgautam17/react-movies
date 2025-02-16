@@ -1,7 +1,7 @@
 import React from 'react'
 import {useState, useEffect} from 'react';
 import Search from "./components/search.jsx";
-import { updateSearchCount} from "./appwrite.js";
+import { updateSearchCount, getTrendingMovies} from "./appwrite.js";
 import HashLoader from "react-spinners/HashLoader";
 import MovieCard from "./components/MovieCard.jsx";
 import {useDebounce} from "react-use";
@@ -37,7 +37,7 @@ const App = () => {
         try {
             const endpoint = query
                 ? `${API_BASE_URL}/search/movie?query=${encodeURIComponent(query)}`
-                :`${API_BASE_URL}/discover/movie?sort_by=popularity.desc`;
+                : `${API_BASE_URL}/discover/movie?sort_by=popularity.desc`;
 
             const response = await fetch(endpoint, API_OPTIONS);
 
@@ -46,23 +46,35 @@ const App = () => {
             }
 
             const data = await response.json();
-
-            await new Promise(resolve => setTimeout(resolve, 1000));
-
-            console.log(data);
+            console.log("Fetched movies:", data);
 
             if (data.results === 'False') {
                 setErrorMessage(data.Error || "Failed to fetch movies");
                 setMovieList([]);
                 return;
             }
+
             setMovieList(data.results || []);
+
+            if (query && data.results.length > 0) {
+                updateSearchCount(query, data.results[0]).catch(console.error);
+            }
 
         } catch (error) {
             setErrorMessage(error.message);
-            console.error(`Error is ${errorMessage}`);
+            console.error(`Error in fetchMovies: ${error}`);
         } finally {
             setIsMovieLoading(false);
+        }
+    };
+
+    const loadTrendingMovies = async () => {
+        try{
+            const movies = await getTrendingMovies();
+
+            setTrendingMovies(movies);
+        } catch (error){
+            console.log(`The error is ${error}`);
         }
     }
 
@@ -70,6 +82,13 @@ const App = () => {
         fetchMovies(deBouncedSearchTerm);
     }, [deBouncedSearchTerm])
 
+    useEffect(() => {
+        const fetchTrending = async () => {
+            await loadTrendingMovies();
+        };
+
+        fetchTrending();
+    }, []);
     return (
         <main>
            <div className="pattern"/>
@@ -82,6 +101,25 @@ const App = () => {
                     </span> You Will Enjoy Without the Hasstle</h1>
                     <Search searchTerm={searchTerm} setSearchTerm={setSearchTerm} />
                 </header>
+
+                { trendingMovies ? (
+                    <section className="trending">
+                        <h2>Trending Movies</h2>
+                        <ul>
+                            {trendingMovies.map((movie, index) => (
+                                <li key={movie.id}>
+                                    <p>{index +1}</p>
+                                    <img src={movie.poster_url} alt="Movie cover" className="transition hover:scale-110"/>
+                                </li>
+                            ))}
+                        </ul>
+                    </section>
+                ):
+                    <div className="mt-6 py-4">
+                        <p className="text-center text-gray-600">No trending movies available</p>
+                        {/*<p className="text-center text-gray-600">Movies length: {trendingMovies.length}</p>*/}
+                    </div>
+                }
 
                 <section className="all-movies">
                     <h2 className={'pt-10'}>All Movies</h2>
